@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Monty Hall — Admin Dashboard (LAN)</title>
+  <style>
+    :root{
+      --bg:#0f172a; --card:#1f2937; --text:#e5e7eb; --muted:#9ca3af; --border:#374151;
+      --accent:#22d3ee; --success:#34d399; --danger:#f87171;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; background:radial-gradient(1200px 800px at 20% 0%, #111827 0%, var(--bg) 60%); color:var(--text); font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell; padding:24px}
+    .wrap{max-width:920px; margin:0 auto}
+    h1{margin:0 0 6px}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25); margin-top:12px}
+    .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+    .stat{background:#0b1220; border:1px solid var(--border); border-radius:14px; padding:12px}
+    .label{color:var(--muted); font-size:12px}
+    .value{font-size:24px; font-weight:700}
+    .bars{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px}
+    .bar{height:14px; background:#0b1220; border:1px solid var(--border); border-radius:999px; overflow:hidden}
+    .bar>span{display:block; height:100%; width:0%; transition:width .25s ease; background:linear-gradient(90deg, var(--accent), #60a5fa)}
+    .bar.stay>span{background:linear-gradient(90deg, #f59e0b, #05e7bd)}
+    .bar.lose>span{background:linear-gradient(90deg, var(--danger), #e11d48)}
+    .bar.totalwin>span{background:var(--success)}
+    .bar.totallose>span{background:var(--danger)}
+    button{appearance:none; border:1px solid var(--border); background:linear-gradient(180deg,#1f2937 0%,#0f172a 100%); color:var(--text); border-radius:12px; padding:8px 12px; cursor:pointer; font-weight:700}
+    button:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 6px 18px rgba(34,211,238,.15); }
+    .row{display:flex; gap:10px; align-items:center; justify-content:space-between}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono"; font-size:13px}
+    .mt{margin-top:10px}
+    fieldset { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; }
+    fieldset.slim { padding: 2px 10px; }
+    legend { color: var(--muted); font-size: 12px; padding: 0 6px; }
+    #activePlayersWrap.ok { color: var(--success); } /* πράσινο όταν > 0 */
+    button.danger{
+      border-color: var(--danger);
+      background: linear-gradient(180deg,#7f1d1d 0%,#450a0a 100%);
+      color:#fff;
+    }
+    button.danger:hover{
+      box-shadow: 0 8px 22px rgba(239,68,68,.25);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Monty Hall — Admin Dashboard</h1>
+    <div class="mono" id="conn">connecting…</div>
+
+    <div class="row" style="margin-top:6px">
+      <div class="mono" id="meta">
+        <span id="activePlayersWrap">Active players: <span id="activePlayers">0</span></span><br>
+        <span>Last update: <span id="lastUpdate">—</span></span>
+      </div>
+      <div style="display:flex; gap:8px">
+        <button id="btnExportJson">Export JSON</button>
+        <button id="btnExportCsv">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div class="stat"><div class="label">Σύνολο</div><div class="value" id="gTotal">0</div></div>
+        <div class="stat"><div class="label">Νίκες — Switch</div><div class="value" id="gSwitch">0 <span class="mono" id="gSwitchPlays">/ 0</span></div></div>
+        <div class="stat"><div class="label">Νίκες — Stay</div><div class="value" id="gStay">0 <span class="mono" id="gStayPlays">/ 0</span></div></div>
+      </div>
+
+      <div class="bars mt">
+        <div>
+          <div class="row"><span>Win rate (Switch)</span><span class="mono" id="gpSwitch">0%</span></div>
+          <div class="bar"><span id="gbarSwitch"></span></div>
+
+          <div class="row mt"><span>Lose rate (Switch)</span><span class="mono" id="gpSwitchLose">0%</span></div>
+          <div class="bar lose"><span id="gbarSwitchLose"></span></div>
+        </div>
+        <div>
+          <div class="row"><span>Win rate (Stay)</span><span class="mono" id="gpStay">0%</span></div>
+          <div class="bar stay"><span id="gbarStay"></span></div>
+
+          <div class="row mt"><span>Lose rate (Stay)</span><span class="mono" id="gpStayLose">0%</span></div>
+          <div class="bar lose"><span id="gbarStayLose"></span></div>
+        </div>
+      </div>
+
+      <fieldset class="mt slim" style="margin-top:20px">
+        <legend>Συνολικά Στατιστικά</legend>
+        <div class="bars">
+          <div>
+            <div class="row"><span>Win Rate (Total)</span><span class="mono" id="gpTotalWin">0%</span></div>
+            <div class="bar totalwin"><span id="gbarTotalWin"></span></div>
+          </div>
+          <div>
+            <div class="row"><span>Lose Rate (Total)</span><span class="mono" id="gpTotalLose">0%</span></div>
+            <div class="bar totallose"><span id="gbarTotalLose"></span></div>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="row mt">
+        <button id="btnGlobalReset" class="danger">Reset stats δικτύου</button>
+        <span class="mono" id="err"></span>
+      </div>
+    </div>
+  </div>
+
+  <!--- JavaScript για ενημέρωση UI --->
+  <script>
+    let __lastSnapshot = null;
+    
+    function setBar(id, pct, labelId){
+      const el = document.getElementById(id);
+      const l  = document.getElementById(labelId);
+      const v = Math.max(0, Math.min(100, Number(pct||0)));
+      if (el) el.style.width = v + '%';
+      if (l)  l.textContent = v.toFixed(1) + '%';
+    }
+    function updateUI(s){
+      __lastSnapshot = s; // κρατάμε το τελευταίο snapshot για export
+      
+      document.getElementById('gTotal').textContent = s.total ?? 0;
+
+      document.getElementById('gSwitch').firstChild.nodeValue = (s.winSwitch ?? 0) + ' ';
+      document.getElementById('gSwitchPlays').textContent = '/ ' + (s.playSwitch ?? 0);
+
+      document.getElementById('gStay').firstChild.nodeValue = (s.winStay ?? 0) + ' ';
+      document.getElementById('gStayPlays').textContent = '/ ' + (s.playStay ?? 0);
+
+      setBar('gbarSwitch',     s.winRateSwitch,  'gpSwitch');
+      setBar('gbarSwitchLose', s.loseRateSwitch, 'gpSwitchLose');
+      setBar('gbarStay',       s.winRateStay,    'gpStay');
+      setBar('gbarStayLose',   s.loseRateStay,   'gpStayLose');
+
+      setBar('gbarTotalWin',   s.winRateTotal,   'gpTotalWin');
+      setBar('gbarTotalLose',  s.loseRateTotal,  'gpTotalLose');
+
+      // Last update + active players
+      const ts = s.lastUpdate ? new Date(s.lastUpdate) : new Date();
+      const ap = Number(s.activePlayers ?? 0);
+      document.getElementById('lastUpdate').textContent = ts.toLocaleString('el-GR');
+      document.getElementById('activePlayers').textContent = String(ap);
+
+      // βάψε πράσινο όταν υπάρχουν ενεργοί
+      const wrap = document.getElementById('activePlayersWrap');
+      if (wrap) wrap.classList.toggle('ok', ap > 0);
+    }
+  </script>
+  <!-- Socket.IO (admin namespace με key) -->
+  <script id="so"></script>
+  <script>
+    const WS_HOST = window.location.hostname;
+    const WS_PORT = window.location.port || 5500;
+    
+    // Πάρε το admin key: ?key=..., ή από localStorage, ή ζητά το με prompt
+    let ADMIN_KEY =
+      new URLSearchParams(location.search).get('key') ||
+      localStorage.getItem('ADMIN_KEY') || '';
+
+    if (!ADMIN_KEY) {
+      ADMIN_KEY = (prompt('Admin key (όπως στο .env):') || '').trim();
+      if (ADMIN_KEY) localStorage.setItem('ADMIN_KEY', ADMIN_KEY);
+    } else {
+      ADMIN_KEY = ADMIN_KEY.trim();
+    }
+
+    const connEl = document.getElementById('conn');
+    const errEl  = document.getElementById('err');
+
+    const so = document.getElementById('so');
+    so.onload = () => {
+      const socket = io(`http://${WS_HOST}:${WS_PORT}/admin`, {
+        auth: { key: ADMIN_KEY },
+        transports: ['websocket','polling'],
+        withCredentials: true
+      });
+
+      socket.on('connect', () => { connEl.textContent = `connected to ${WS_HOST}:${WS_PORT}/admin`; errEl.textContent = ''; });
+      socket.on('disconnect', () => { connEl.textContent = 'disconnected'; });
+      socket.on('connect_error', (e) => { errEl.textContent = e?.message || 'connect error'; console.error(e); });
+
+      // ΠΑΙΡΝΕΙΣ realtime aggregate από εδώ
+      socket.on('globalStats', (s) => { /* console.log('[admin] globalStats', s); */ updateUI(s); });
+
+      document.getElementById('btnGlobalReset').addEventListener('click', () => socket.emit('resetGlobalStats'));
+
+      // Export helpers
+      function download(name, text, type = 'application/octet-stream'){
+        const blob = new Blob([text], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function toCsv(obj){
+        // απλός flat CSV (header από keys, μία γραμμή από values)
+        const keys = Object.keys(obj);
+        const vals = keys.map(k => String(obj[k] ?? ''));
+        return keys.join(',') + '\n' + vals.join(',');
+      }
+
+      document.getElementById('btnExportJson').addEventListener('click', () => {
+        if (!__lastSnapshot) return;
+        const pretty = JSON.stringify(__lastSnapshot, null, 2);
+        download(`montyhall-stats-${Date.now()}.json`, pretty, 'application/json');
+      });
+      document.getElementById('btnExportCsv').addEventListener('click', () => {
+        if (!__lastSnapshot) return;
+        const csv = toCsv(__lastSnapshot);
+        download(`montyhall-stats-${Date.now()}.csv`, csv, 'text/csv');
+      });
+    };
+    so.onerror = () => { errEl.textContent = 'socket.io client failed to load'; };
+    so.src = `http://${WS_HOST}:${WS_PORT}/socket.io/socket.io.js`;
+  </script>
+
+</body>
+</html>

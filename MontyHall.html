@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Monty Hall Problem — Simulation</title>
+  <link rel="preload" href="./fonts/Durango-Bold.ttf" as="font" type="font/ttf" crossorigin>
+  <style>
+    @font-face {
+      font-family: "Durango";
+      src:
+        local("Durango Bold"),
+        local("Durango"),
+        url("./fonts/Durango-Bold.ttf") format("truetype");
+      font-weight: 700;   /* Bold */
+      font-style: normal;
+      font-display: swap;
+    }
+    :root {
+      --bg: #0f172a; /* slate-900 */
+      --panel: #111827; /* gray-900 */
+      --text: #e5e7eb; /* gray-200 */
+      --muted: #9ca3af; /* gray-400 */
+      --accent: #22d3ee; /* cyan-400 */
+      --accent-2: #f59e0b; /* amber-500 */
+      --success: #34d399; /* emerald-400 */
+      --danger: #f87171; /* red-400 */
+      --card: #1f2937; /* gray-800 */
+      --border: #374151; /* gray-700 */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: radial-gradient(1200px 800px at 20% 0%, #111827 0%, var(--bg) 60%);
+      color: var(--text); font: 16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      min-height: 100vh; padding: 24px;
+      display: grid; place-items: start center;
+    }
+    .container { width: min(1100px, 100%); }
+    h1 { font-size: clamp(22px, 3vw, 32px); margin: 0 0 8px; letter-spacing: 0.3px; }
+    p.lead { color: var(--muted); margin: 0 0 18px; }
+
+    .grid {
+      display: grid; gap: 16px; grid-template-columns: 1.1fr 1fr; align-items: start;
+    }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+    .card h2 { margin: 0 0 12px; font-size: 18px; letter-spacing: 0.2px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+
+    .controls { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+    .controls .full { grid-column: 1 / -1; }
+
+    fieldset { border: 1px dashed var(--border); border-radius: 12px; padding: 10px 12px; }
+    fieldset.slim { padding: 2px 10px; }  /* από 10px 12px -> 2px 10px */
+    legend { color: var(--muted); font-size: 12px; padding: 0 6px; }
+
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    button {
+      appearance: none; border: 1px solid var(--border); background: linear-gradient(180deg, #1f2937 0%, #0f172a 100%);
+      color: var(--text); border-radius: 12px; padding: 10px 14px; cursor: pointer; font-weight: 600; letter-spacing: 0.2px;
+      transition: transform .06s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    button:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 6px 18px rgba(34,211,238,.15); }
+    button:active { transform: translateY(0); }
+    button.secondary { background: #111827; }
+
+    input[type="number"], input[type="text"] {
+      background: #0b1220; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; width: 100%;
+    }
+    label { color: var(--muted); font-size: 14px; }
+
+    .doors { display: grid; gap: 16px; grid-template-columns: repeat(3, 1fr); }
+    .door {
+      position: relative; background: linear-gradient(180deg, #111827, #0b1220); border: 1px solid var(--border);
+      border-radius: 16px; padding: 14px; height: 140px; display: grid; place-items: center; cursor: pointer;
+      transition: transform .12s ease, border-color .15s ease, box-shadow .2s ease;
+      user-select: none;
+    }
+    .door:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 10px 24px rgba(34,211,238,.12); }
+    .door .id { position: absolute; top: 8px; left: 10px; font-size: 12px; color: var(--muted); }
+    .door .badge { position: absolute; top: 8px; right: 10px; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+
+    .door.selected { outline: 2px solid var(--accent); box-shadow: 0 0 0 4px rgba(34,211,238,.15) inset; }
+    .door.opened-goat { border-color: var(--danger); box-shadow: 0 0 0 4px rgba(248,113,113,.15) inset; }
+    .door.revealed-goat::after { content: "🐐"; font-size: var(--emoji-size, 42px); }
+    .door.car::after          { content: "🚗"; font-size: var(--emoji-size, 42px); }
+    .door.goat::after         { content: "🐐"; font-size: var(--emoji-size, 42px); }
+    .door.is-open { background: #262729 !important; pointer-events: none; cursor: default;}
+    .door.is-open:hover { transform: none; border-color: var(--border); box-shadow: none; }
+    .door:disabled { cursor: not-allowed; pointer-events: none; opacity: 0.95;}
+    .door:disabled.hover { transform: none; border-color: var(--border); box-shadow: none; }
+    
+    /* Hover hint για "Switch"/"Stay" στις πόρτες κατά τη φάση DECIDE */
+    .door.hover-hint::before {
+      content: attr(data-hint);
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -52%);
+      transform-origin: center;
+      font-size: var(--door-emoji-size, 22px);
+      font-family: "Durango";
+      font-weight: 700;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 800;
+
+      background: linear-gradient(180deg, #05e7bd 0%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 1px rgba(255,255,255,0.08);
+      
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      box-shadow: 0 6px 16px rgba(34,211,238,.18);
+
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .12s ease, transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+
+    .door.hover-hint:hover::before {
+    opacity: 1;
+    transform: translate(-50%, -56%);
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px rgba(34,211,238,.22);
+    }
+    /* να μη φαίνεται σε πόρτες που είναι ήδη ανοιχτές/disabled */
+    .door.is-open.hover-hint::before { display: none; }
+
+    .door.final::before {
+      content: "✓ τελική επιλογή";
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: var(--accent-2);
+      background: rgba(17,24,39,.75); /* #111827 με διαφάνεια */
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    .result {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0b1220;
+      text-align: center;
+      font-weight: 700;
+    }
+    .result.hidden { display: none; }
+    .result.win  { background: rgba(52,211,153,.12); border-color: #34d399; }
+    .result.lose { background: rgba(248,113,113,.12); border-color: #f87171; }
+    
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+    .stat { background: #0b1220; border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+    .stat .label { color: var(--muted); font-size: 12px; }
+    .stat .value { font-size: 22px; font-weight: 700; }
+    .stat .value .plays { font-size: 0.65em; color: var(--muted); margin-left: 4px; }
+
+    .bars { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+    .bar { height: 12px; background: #0b1220; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #60a5fa); width: 0%; transition: width .3s ease; }
+    .bar.stay > span { background: linear-gradient(90deg, var(--accent-2), #05e7bd); }
+    .bar.lose > span { background: linear-gradient(90deg, var(--danger), #e20d0d);}
+    /* Total bars */
+    .bar.totalwin  > span { background: #34d399; } /* Win Rate (Total) */
+    .bar.totallose > span { background: #f87171; } /* Lose Rate (Total) */
+
+    .log { background: #0b1220; border: 1px dashed var(--border); border-radius: 12px; padding: 10px; color: var(--muted); height: 120px; overflow: auto; white-space: pre-line; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 13px; }
+
+    .footer { margin-top: 14px; color: var(--muted); font-size: 12px; text-align: center; }
+    a { color: var(--accent); text-decoration: none; }
+
+    .icon-btn { padding: 4px 8px; font-size: 14px; line-height: 1; min-width: unset; border-radius: 8px; }
+    #btnStatsReset {
+      font-size: 12px;      /* πιο μικρό κείμενο */
+      padding: 2px 8px;     /* πιο χαμηλό ύψος */
+      line-height: 1;       /* σφιχτό */
+      border-radius: 6px;   /* ελαφρώς μικρότερες γωνίες */
+      min-width: unset;     /* μην “απλώνει” */
+    }
+    /* Overlay + modal */
+    .overlay {
+      position: fixed; inset: 0; z-index: 20000;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .overlay.show { display: flex; }
+    .overlay.hidden { display: none; }
+
+    .modal {
+      width: min(960px, 96vw);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      position: relative;
+    }
+
+    .modal .close {
+      position: absolute; top: 8px; right: 8px;
+      width: 36px; height: 36px; border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #111827; font-size: 20px; line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    /* Μεγαλύτερες πόρτες μέσα στο modal */
+    .modal .doors { grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .modal .door { height: 230px; font-size: 1.1em; }
+    .modal .door.hover-hint::before {
+      font-size: 42px;
+    }
+
+    .qr-wrap { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    #qrcode { background:#0b1220; border:1px solid var(--border); border-radius:12px; padding:8px; }
+    .qr-actions button { font-size:12px; padding:6px 10px; }
+
+    /* --- QR Side Tab --- */
+    .qr-fab{
+      position: fixed;
+      left: -12px;                 /* “βγαίνει” λίγο από τα αριστερά */
+      bottom: 16px;
+      z-index: 10000;
+      
+      padding: 10px 16px 10px 22px;/* λίγο παραπάνω αριστερά για το “χείλος” */
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg,#1f2937 0%,#0f172a 100%);
+      color: var(--text);
+      font-weight: 700;
+      letter-spacing: .2px;
+      cursor: pointer;
+      
+      border-radius: 0 9999px 9999px 0;
+
+      box-shadow: 0 8px 24px rgba(0,0,0,.35);
+      transition: transform .18s ease, box-shadow .2s ease, border-color .15s ease;
+    }
+    .qr-fab:hover,
+    .qr-fab:focus-visible{
+      transform: translateX(10px);
+      border-color: var(--accent);
+      box-shadow: 0 10px 28px rgba(34,211,238,.18);
+    }
+    .qr-fab:active{ transform: translateX(8px); }
+
+    /* Admin FAB (πάνω από το QR) */
+    .admin-fab{
+      bottom: 62px;                        /* λίγο πιο πάνω από το QR */
+      padding: 10px 12px 10px 18px;        /* λίγο πιο «σφιχτό» ώστε να βγαίνει ίδιο μέγεθος με το "QR" */
+    }
+    @media (hover:none){
+      .admin-fab{
+        left: 16px;
+        bottom: 66px;
+        border-radius: 9999px;
+        transform: none;
+      }
+    }
+
+    .cap-hint {
+      margin-left: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      user-select: none;
+    }
+    .cap-hint.warn {
+      color: #ef4444;     /* κόκκινο προειδοποίησης */
+      font-weight: 600;
+    }
+
+    /* Σε touch συσκευές (χωρίς hover) δείξε το πλήρως μέσα στην οθόνη */
+    @media (hover:none){
+      .qr-fab{
+        left: 16px;             /* ολόκληρο μέσα στην οθόνη */
+        bottom: 16px;
+        padding: 10px 16px;     /* συμμετρικό padding */
+        border-radius: 9999px;  /* ΠΛΗΡΩΣ στρογγυλό (χωρίς D-cut) */
+        transform: none;        /* καμία μετακίνηση */
+      }
+      /* Απενεργοποιεί το “slide” και σε focus/active για touch */
+      .qr-fab:hover,
+      .qr-fab:focus-visible,
+      .qr-fab:active{
+        transform: none;
+      }
+    }
+
+    /* ----- MOBILE PORTRAIT: Fullscreen γύρος με πόρτες κάθετα ----- */
+    @media (max-width: 640px) and (orientation: portrait) {
+      /* ΜΟΝΟ στο “κανονικό” game (μέσα στο card), ΟΧΙ στο fullscreen overlay */
+      #interactiveMount .door.hover-hint::before{
+        font-size: 1.45em !important;  /* ελαφρώς πιο μικρό (~8%) */
+        padding: 4px 10px !important;   /* λίγο πιο «γεμάτο» από πριν */
+      }
+      
+      /* Κάνε το modal πραγματικό fullscreen στο κινητό */
+      #overlay .modal{
+        width: 100vw; height: 100svh;
+        max-width: none; max-height: none;
+        border-radius: 0;
+        padding: 16px;
+        display: flex; flex-direction: column;
+      }
+      #overlay h3{ font-size: 16px; margin-bottom: 8px; }
+
+      /* Το εσωτερικό content γεμίζει το ύψος, κεντραρισμένο */
+      #overlay #overlayContent{
+        flex: 1 1 auto;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 12px;
+      }
+
+      /* Οι πόρτες σε κάθετη διάταξη */
+      #overlay #overlayContent .doors{
+        width: 100%;
+        display: flex !important;           /* υπερκαλύπτει οτιδήποτε υπάρχει */
+        flex-direction: column !important;  /* ΚΑΘΕΤΑ */
+        align-items: center;
+        gap: 12px;
+      }
+      /* Πλάτος κάθε πόρτας στο κινητό */
+      #overlay #overlayContent .doors > *{
+        width: clamp(220px, 70vw, 340px);   /* προσαρμοστικό πλάτος */
+        height: 22vh;
+        max-height: 210px;
+      }
+
+      /* Γραμμή με κουμπιά/φάση στο κέντρο */
+      #overlay #overlayContent .row{
+        width: 100%;
+        display: flex !important;
+        flex-direction: column !important;   /* ΚΟΥΜΠΙ πάνω, ΦΑΣΗ από κάτω */
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 10px;
+        margin-top: 12px !important;
+      }
+
+      /* Κεντράρισμα/αναγνωσιμότητα φάσης */
+      #overlay #phase{
+        display: block;
+        text-align: center;
+        font-size: 14px;
+      }
+
+      /* Προαιρετικό: λίγο πλάτος στο κουμπί για ευκολότερο tap */
+      #overlay #btnReset{
+        min-width: clamp(200px, 60vw, 320px);
+      }
+
+      /* Banner αποτελέσματος εύκολο να διαβαστεί/αγγιχτεί */
+      #overlay #resultBanner{
+        position: fixed; left: 12px; right: 12px; bottom: 12px;
+        z-index: 1;
+      }
+
+      /* Μεγαλύτερα tap targets σε κινητό */
+      #overlay button{ min-height: 40px; padding: 10px 14px; }
+      /* Μικρότερο leading σε φράσεις για να μην “σπάνε” */
+      #overlay #phase{ font-size: 14px; }
+
+      /* Λιγότερο “έντονο” hover στα κινητά */
+      #overlay .door:hover{
+        transform: none;
+        box-shadow: none;
+        border-color: var(--border);
+      }
+
+      /* Στο δεξί panel */
+      fieldset legend { text-align: left; }
+      fieldset label{
+        display: block;            /* κάθε label σε νέα γραμμή */
+        margin: 6px 0;             /* ομοιόμορφο κάθετο κενό */
+        line-height: 1.2;
+      }
+
+      /* Κρύψε τα “0.0%” δίπλα στα labels (μόνο για τις 4 μπάρες switch/stay) */
+      #pSwitch, #pSwitchLose, #pStay, #pStayLose, #pTotalWin, #pTotalLose { display: none !important; }
+
+      /* Πάχυνση μπάρας + ποσοστό στο κέντρο, μόνο για τις 4 μπάρες switch/stay */
+      .bar:has(> span#barSwitch),
+      .bar:has(> span#barSwitchLose),
+      .bar:has(> span#barStay),
+      .bar:has(> span#barStayLose),
+      .bar:has(> span#barTotalWin),
+      .bar:has(> span#barTotalLose) {
+        position: relative;
+        height: 20px;            /* παχύτερη μπάρα σε κινητό */
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      /* Κείμενο ποσοστού στο κέντρο της μπάρας (έρχεται από data-pct) */
+      .bar:has(> span#barSwitch)::after,
+      .bar:has(> span#barSwitchLose)::after,
+      .bar:has(> span#barStay)::after,
+      .bar:has(> span#barStayLose)::after,
+      .bar:has(> span#barTotalWin)::after,
+      .bar:has(> span#barTotalLose)::after {
+        content: attr(data-pct);
+        position: absolute;
+        left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        font: 700 12px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
+        color: #ffffffd9;
+        text-shadow: 0 1px 2px rgba(0,0,0,.35);
+        pointer-events: none;
+      }
+      /* Εφαρμόζουμε στον γονέα .bar μέσω :has() για καθαρή στόχευση (υποστηρίζεται σε σύγχρονα mobile browsers) */
+      .bar:has(> span#barSwitch),
+      .bar:has(> span#barSwitchLose),
+      .bar:has(> span#barStay),
+      .bar:has(> span#barStayLose) {
+        position: relative;
+        height: 20px;                /* πιο παχιά μπάρα */
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      /* Το ποσοστό στο κέντρο της μπάρας */
+      .bar:has(> span#barSwitch)::after,
+      .bar:has(> span#barSwitchLose)::after,
+      .bar:has(> span#barStay)::after,
+      .bar:has(> span#barStayLose)::after {
+        content: attr(data-pct);     /* έρχεται από JS (βήμα Γ) */
+        position: absolute;
+        left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        font: 700 12px/1.1 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell;
+        color: #ffffffd9;            /* ελαφρώς ημιδιάφανο λευκό */
+        text-shadow: 0 1px 2px rgba(0,0,0,.35);
+        pointer-events: none;
+      }
+    }
+
+    @media (max-width: 640px) and (orientation: landscape) {
+      #overlay #resultBanner{
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 1;
+      }
+
+      /* Πραγματικό fullscreen modal και στο landscape */
+      #overlay .modal{
+        width: 100vw;
+        height: 100svh;     /* σταθερό viewport height -> δεν επηρεάζεται από UI bars */
+        max-width: none;
+        max-height: none;
+        border-radius: 0;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      #overlay #overlayContent{
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      /* άφησε χώρο για το fixed banner */
+      #overlay #overlayContent{ padding-bottom: 64px; }
+      #overlay #resultBanner{ z-index: 5; } /* για συνέπεια με το άλλο block */
+    }
+
+    /* ΚΙΝΗΤΑ σε landscape (ακόμα κι αν το πλάτος > 640px): κράτα το banner fixed
+    και άφησε “χώρο” ώστε να μη σπρώχνονται/κρύβονται οι πόρτες */
+    @media (pointer: coarse) and (orientation: landscape) {
+      #overlay #resultBanner{
+        position: fixed;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 5; /* λίγο πάνω από τις πόρτες */
+      }
+      #overlay #overlayContent{
+        /* αφήσε σταθερό “πάτο” για το fixed banner ώστε να μην αλλάζει/σπρώχνει layout */
+        padding-bottom: 64px;
+      }
+    }
+    
+    /* Περιεχόμενο modal QR */
+    .modal .qr-big { display:flex; align-items:center; justify-content:center; gap:14px; flex-wrap:wrap; }
+    #qrOverlayCode { background:#0b1220; border:1px solid var(--border); border-radius:12px; padding:10px; }
+    .modal .qr-link { font-size:12px; color:var(--muted); }
+    .modal .qr-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+    /* Στήλη με κουμπιά/URL στο QR modal: κρατά πάντα χώρο για το toast */
+    .qr-col{
+      position: relative;
+      padding-bottom: 34px;   /* δεσμεύει χώρο ~ύψος toast */
+    }
+
+    /* Το toast εμφανίζεται σε απόλυτη θέση, δεν μετακινεί τίποτα */
+    .copy-toast{
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      display: none;
+      margin-top: 0;          /* δεν χρειάζεται πια */
+      text-align: center;
+
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      background: rgba(52,211,153,.12);
+      color: #34d399;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      opacity: 1;
+      transition: opacity .4s ease;
+    }
+    .copy-toast.fade { opacity: 0; }
+
+    /* Disabled look for icon buttons during toast */
+    .icon-btn.is-disabled,
+    button:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      pointer-events:none;
+    }
+
+    /* ΚΙΝΗΤΑ: στη φάση DECIDE (όπου υπάρχει .hover-hint), δείξε πάντα τα labels χωρίς hover */
+    @media (hover:none), (pointer:coarse){
+      .door.hover-hint::before{
+        opacity: 1 !important;
+        transform: translate(-50%, -56%) !important;
+        z-index: 2; /* βεβαιώσου ότι κάθεται πάνω από το emoji (::after) */
+      }
+      /* προαιρετικά, “ηρεμία” στα effects για touch */
+      .door:hover{
+        transform: none;
+        box-shadow: none;
+        border-color: var(--border);
+      }
+    }
+    </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Monty Hall — The Simulation</h1>
+    <p class="lead">Παίξε έναν γύρο ή προσομοίωσε χιλιάδες γύρους αυτόματα. Σύγκρινε τη στρατηγική <strong>Switch</strong> (αλλάζω πόρτα) με <strong>Stay</strong> (μένω).</p>
+
+    <div class="grid">
+      <!-- LEFT: Interactive game -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Διαδραστικός γύρος</h2>
+          <button id="btnFocus" class="icon-btn" title="Εστίαση (focus)">⛶</button>
+        </div>
+        <div id="interactiveMount">
+          <div id="interactiveBlock">
+            <div class="doors" id="doors"></div>
+            <div class="row" style="margin-top:10px">
+              <button id="btnReset" class="secondary">Νέος γύρος</button>
+              <span id="phase" class="mono" aria-live="polite">Φάση: Επιλέξτε μια πόρτα</span>
+            </div>
+            <div id="resultBanner" class="result hidden" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Controls & Stats -->
+      <div class="card">
+        <div class="card-header">
+          <h2>Έλεγχοι & Στατιστικά</h2>
+          <button id="btnStatsReset" class="icon-btn" title="Μηδενισμός στατιστικών">Reset stats</button>
+        </div>
+
+        <div class="controls">
+          <fieldset class="full">
+            <legend>Στρατηγική για Αυτόματη Προσομοίωση</legend>
+            <label><input type="radio" name="strategy" value="switch" checked> Switch (πάντα αλλάζω)</label>
+            <label><input type="radio" name="strategy" value="stay"> Stay (δεν αλλάζω)</label>
+            <label><input type="radio" name="strategy" value="random"> Random (50-50)</label>
+          </fieldset>
+
+          <div>
+            <label for="rounds">Γύροι αυτόματης προσομοίωσης:</label>
+            <input id="rounds" type="number" min="1" step="1" max="1000000" value="1000" />
+            <small id="roundsHint" class="cap-hint" aria-live="polite" title="Μέγιστος αριθμός γύρων">
+              Μέγιστο: 1.000.000
+            </small>
+          </div>
+          <div class="row">
+            <button id="btnOne">Παίξε 1 γύρο (με στρατηγική)</button>
+            <button id="btnAuto">Τρέξε αυτόματα</button>
+          </div>
+
+          <div class="full">
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Σύνολο</div>
+                <div class="value" id="tTotal">0</div>
+              </div>
+              <div class="stat">
+                <div class="label">Νίκες — Switch</div>
+                <div class="value" id="tSwitch">0 <span class="plays">/ 0</span></div>
+              </div>
+              <div class="stat">
+                <div class="label">Νίκες — Stay</div>
+                <div class="value" id="tStay">0 <span class="plays">/ 0</span></div>
+              </div>
+            </div>
+            <div class="bars">
+              <div>
+                <div class="row" style="justify-content:space-between"><span>Win rate (Switch)</span><span class="mono" id="pSwitch">0%</span></div>
+                <div class="bar"><span id="barSwitch" style="width:0%"></span></div>
+
+                <div class="row" style="justify-content:space-between; margin-top:6px"><span>Lose rate (Switch)</span><span class="mono" id="pSwitchLose">0%</span></div>
+                <div class="bar lose"><span id="barSwitchLose" style="width:0%"></span></div>
+              </div>
+              <div>
+                <div class="row" style="justify-content:space-between"><span>Win rate (Stay)</span><span class="mono" id="pStay">0%</span></div>
+                <div class="bar stay"><span id="barStay" style="width:0%"></span></div>
+
+                <div class="row" style="justify-content:space-between; margin-top:6px"><span>Lose rate (Stay)</span><span class="mono" id="pStayLose">0%</span></div>
+                <div class="bar lose"><span id="barStayLose" style="width:0%"></span></div>
+              </div>
+            </div>
+            <!-- TOTAL RATES -->
+            <fieldset class="full slim" style="margin-top:12px">
+              <legend>Συνολικά Στατιστικά</legend>
+              <div class="bars">
+                <div>
+                  <div class="row" style="justify-content:space-between">
+                    <span>Win Rate (Total)</span>
+                    <span class="mono" id="pTotalWin">0%</span>
+                  </div>
+                  <div class="bar totalwin"><span id="barTotalWin" style="width:0%"></span></div>
+                </div>
+
+                <div>
+                  <div class="row" style="justify-content:space-between">
+                    <span>Lose Rate (Total)</span>
+                    <span class="mono" id="pTotalLose">0%</span>
+                  </div>
+                  <div class="bar totallose"><span id="barTotalLose" style="width:0%"></span></div>
+                </div>
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="full">
+            <label>Καταγραφή</label>
+            <div class="log mono" id="log"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footer">Made by Alexandros Arvanitakis, for 3 extra credits in the Statistics course.</div>
+  </div>
+  <!-- Socket.IO client (backend στο 3000, FRONTEND μένει στο 5500) -->
+  <script id="so"></script>
+  <script>
+    const WS_HOST = window.location.hostname;
+    const WS_PORT = window.location.port || 5500;
+    const so = document.getElementById('so');
+    // Φτιάξε το socket ΜΟΝΟ αφού φορτώσει το socket.io client
+    so.onload = () => {
+      window.socket = io(`http://${WS_HOST}:${WS_PORT}`, {
+        transports: ['websocket','polling'],
+        withCredentials: true
+      });
+      console.log('[monty] connected to', `http://${WS_HOST}:${WS_PORT}`);
+
+      // Προαιρετικό: άκου snapshot από server για συγχρονισμό (αν θέλεις)
+      // socket.on('globalStats', (s) => console.log('[monty] snapshot', s));
+    };
+    so.onerror = () => console.error('socket.io client failed to load');
+    so.src = `http://${WS_HOST}:${WS_PORT}/socket.io/socket.io.js`;
+  </script>
+  <script>
+    // ------------------------
+    // Βοηθητικά
+    // ------------------------
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    const rng = () => Math.random(); // απλό RNG — επαρκεί για προσομοίωση
+
+    // 🔒 Global cap για αυτόματους γύρους (μπορείς να το αλλάξεις όποτε θέλεις)
+    const MAX_AUTO_ROUNDS = 1_000_000;
+    function formatInt(n){ try { return Number(n).toLocaleString('el-GR'); } catch { return String(n); } }
+
+    function updateRoundsHint(v){
+      const hint = document.getElementById('roundsHint');
+      if (!hint) return;
+      const n = Math.floor(Number(v || 0));
+      const over = n > MAX_AUTO_ROUNDS;
+      // Κινητό σε portrait;
+      const isPortraitMobile = window.matchMedia('(max-width: 640px) and (orientation: portrait)').matches;
+
+      hint.textContent = over
+        ? (isPortraitMobile
+            ? `Μέγιστο: ${formatInt(MAX_AUTO_ROUNDS)}`
+            : `Μέγιστο: ${formatInt(MAX_AUTO_ROUNDS)} (θα εφαρμοστεί cap)`)
+        : `Μέγιστο: ${formatInt(MAX_AUTO_ROUNDS)}`;
+      hint.classList.toggle('warn', over);
+    }
+
+    function choice(arr) { return arr[Math.floor(rng() * arr.length)]; }
+
+    function logLine(msg) {
+      const el = $('#log');
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+      const ts = new Date().toLocaleTimeString();
+      el.textContent += `\n[${ts}] ${msg}`;
+      if (atBottom) el.scrollTop = el.scrollHeight;
+    }
+
+    // ------------------------
+    // Μοντέλο Monty Hall
+    // ------------------------
+    const GamePhase = {
+      PICK: 'pick',
+      REVEAL: 'reveal',
+      DECIDE: 'decide',
+      FINISHED: 'finished'
+    };
+
+    class MontyHall {
+      constructor() { this.reset(); }
+      reset() {
+        this.doors = [0,1,2];
+        this.carDoor = Math.floor(rng() * 3);
+        this.playerPick = null; // index
+        this.hostRevealed = null; // index
+        this.phase = GamePhase.PICK;
+      }
+      pickDoor(i) {
+        if (this.phase !== GamePhase.PICK) return false;
+        this.playerPick = i;
+        this.phase = GamePhase.REVEAL;
+        return true;
+      }
+      hostReveal() {
+        if (this.phase !== GamePhase.REVEAL) return false;
+        const candidates = this.doors.filter(d => d !== this.playerPick && d !== this.carDoor);
+        this.hostRevealed = choice(candidates);
+        this.phase = GamePhase.DECIDE;
+        return this.hostRevealed;
+      }
+      switchOrStay(strategy) {
+        // strategy: 'switch' | 'stay'
+        if (this.phase !== GamePhase.DECIDE) return null;
+        if (strategy === 'switch') {
+          const newPick = this.doors.find(d => d !== this.playerPick && d !== this.hostRevealed);
+          this.playerPick = newPick;
+        }
+        // if stay, keep current pick
+        this.phase = GamePhase.FINISHED;
+        return this.playerPick === this.carDoor;
+      }
+    }
+
+    // ------------------------
+    // Κατάσταση/Στατιστικά
+    // ------------------------
+    const Stats = {
+      total: 0,
+      winSwitch: 0,
+      winStay: 0,
+      playSwitch: 0,
+      playStay: 0,
+      add(result, strategy) {
+        this.total += 1;
+        if (strategy === 'switch') this.playSwitch += 1;
+        if (strategy === 'stay')   this.playStay += 1; 
+        if (result && strategy === 'switch') this.winSwitch += 1;
+        if (result && strategy === 'stay') this.winStay += 1;
+        ui.updateStats();
+      },
+      reset() { this.total = this.winSwitch = this.winStay = this.playSwitch = this.playStay = 0; ui.updateStats(); }
+    };
+
+    // -------- Fullscreen helpers --------
+    function isMobileDevice() {
+      // mobile αν είναι στενή οθόνη Ή coarse pointer (touch)
+      return window.matchMedia('(max-width: 640px), (pointer: coarse)').matches;
+    }
+    async function enterFullscreen() {
+      const el = document.documentElement; // όλη η σελίδα
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+      if (req) {
+        try { await req.call(el, { navigationUI: 'hide' }); } catch (e) { /* ignore */ }
+      }
+    }
+    async function exitFullscreenIfAny() {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        try { await exit.call(document); } catch (e) { /* ignore */ }
+      }
+    }
+    document.addEventListener('fullscreenchange', () => {
+      document.body.classList.toggle('is-fs', !!document.fullscreenElement);
+    });
+    
+    // ------------------------
+    // UI
+    // ------------------------
+    const ui = {
+      game: new MontyHall(),
+      doorsEl: $('#doors'),
+      phaseEl: $('#phase'),
+      tTotal: $('#tTotal'), tSwitch: $('#tSwitch'), tStay: $('#tStay'),
+      pSwitch: $('#pSwitch'), pStay: $('#pStay'),
+      barSwitch: $('#barSwitch'), barStay: $('#barStay'),
+      pSwitchLose: $('#pSwitchLose'), pStayLose: $('#pStayLose'),
+      barSwitchLose: $('#barSwitchLose'), barStayLose: $('#barStayLose'),
+      pTotalWin:  $('#pTotalWin'),
+      pTotalLose: $('#pTotalLose'),
+      barTotalWin:  $('#barTotalWin'),
+      barTotalLose: $('#barTotalLose'),
+      get strategy() { return $('input[name="strategy"]:checked').value; },
+
+      init() {
+        this.renderDoors();
+        const roundsEl = document.getElementById('rounds');
+        window.addEventListener('resize', () => updateRoundsHint(roundsEl.value));
+        roundsEl.max = String(MAX_AUTO_ROUNDS);
+
+        // live hint όσο πληκτρολογείς + καθάρισμα flags αν δεν ξεπερνάς cap
+        updateRoundsHint(roundsEl.value);
+        roundsEl.addEventListener('input', () => {
+          updateRoundsHint(roundsEl.value);
+          const v = Math.floor(Number(roundsEl.value || 0));
+          if (v <= MAX_AUTO_ROUNDS) {
+            delete roundsEl.dataset.wasCapped;
+            delete roundsEl.dataset.requestedRaw;
+          }
+        });
+        // clamp + flag αν ξεπέρασε cap
+        roundsEl.addEventListener('change', () => {
+          const v = Math.floor(Number(roundsEl.value || 0));
+          const clamped = Math.max(1, Math.min(MAX_AUTO_ROUNDS, v));
+          if (v > MAX_AUTO_ROUNDS) {
+            roundsEl.dataset.wasCapped   = '1';
+            roundsEl.dataset.requestedRaw = String(v); // 📝 φύλαξε το αρχικό που ζήτησε ο χρήστης
+          } else {
+            delete roundsEl.dataset.wasCapped;
+            delete roundsEl.dataset.requestedRaw;
+          }
+          roundsEl.value = clamped;
+          updateRoundsHint(roundsEl.value);     // φρεσκάρισμα hint μετά το clamp
+        });
+        $('#btnReset').addEventListener('click', () => this.resetRound());
+        $('#btnOne').addEventListener('click', () => this.playOneAuto());
+        $('#btnAuto').addEventListener('click', () => this.runAuto());
+        this.updatePhaseText();
+        $('#btnStatsReset').addEventListener('click', () => { Stats.reset(); $('#log').textContent = ''; });
+        logLine('Έτοιμο. Κάνε κλικ σε μια πόρτα ή χρησιμοποίησε τα κουμπιά δεξιά.');
+        this.updateStats();
+        // Overlay
+        $('#btnFocus').addEventListener('click', () => ui.openOverlay());
+        $('#btnCloseOverlay').addEventListener('click', () => ui.closeOverlay());
+          // optional: κλείσιμο με κλικ έξω από το modal
+        $('#overlay').addEventListener('click', (e) => {
+          if (e.target.id === 'overlay') ui.closeOverlay();
+        });
+        window.addEventListener('resize', () => this.updateEmojiSizes());
+      },
+
+      openOverlay() {
+        const overlay = $('#overlay');
+        const overlayContent = $('#overlayContent');
+        const block = $('#interactiveBlock');
+        overlayContent.appendChild(block);         // μετακινεί ΟΛΟ το interactive block στο modal
+        overlay.classList.remove('hidden');
+        overlay.classList.add('show');
+        document.body.style.overflow = 'hidden';   // αποτρέπει scroll πίσω
+        // Αν είμαστε σε κινητό (portrait Ή landscape), ζήτα αληθινό fullscreen
+        if (isMobileDevice() && (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
+          enterFullscreen();
+        }
+        requestAnimationFrame(() => this.updateEmojiSizes());
+      },
+
+      closeOverlay() {
+        const overlay = $('#overlay');
+        const mount = $('#interactiveMount');
+        const block = $('#interactiveBlock');
+        // Βγες από fullscreen (αν είσαι)
+        exitFullscreenIfAny();
+        mount.appendChild(block);                  // επιστροφή στη θέση του
+        overlay.classList.remove('show');
+        overlay.classList.add('hidden');
+        document.body.style.overflow = '';         // επαναφορά scroll
+        requestAnimationFrame(() => this.updateEmojiSizes());
+      },
+      
+      resetRound() {
+        this.game.reset();
+        this.renderDoors();
+        this.clearHoverHints();
+        this.updatePhaseText();
+        const banner = $('#resultBanner');
+        banner.classList.add('hidden');
+        banner.classList.remove('win', 'lose');
+        banner.textContent = '';
+      },
+
+      renderDoors() {
+        this.doorsEl.innerHTML = '';
+        for (let i = 0; i < 3; i++) {
+          const d = document.createElement('button');
+          d.className = 'door';
+          d.setAttribute('aria-label', `Πόρτα ${i+1}`);
+          d.innerHTML = `<span class="id">#${i+1}</span><span class="badge">κλικ</span>`;
+          d.addEventListener('click', () => this.onDoorClick(i, d));
+          this.doorsEl.appendChild(d);
+        }
+        this.updateEmojiSizes();
+      },
+
+      updateEmojiSizes() {
+        // ρυθμίζουμε μέγεθος ~42% του ύψους πόρτας, με όρια για αισθητική
+        $$('.door', this.doorsEl).forEach(el => {
+          const h = el.getBoundingClientRect().height;
+          const size = Math.max(36, Math.min(140, Math.round(h * 0.42)));
+          el.style.setProperty('--emoji-size', size + 'px');
+        });
+      },
+
+      clearHoverHints() {
+        $$('.door', this.doorsEl).forEach(el => {
+          el.classList.remove('hover-hint');
+          el.removeAttribute('data-hint');
+        });
+      },
+
+      setupDecideHoverHints() {
+        const g = this.game;
+        if (g.phase !== GamePhase.DECIDE) return;
+        const unopenedOther = [0,1,2].find(d => d !== g.playerPick && d !== g.hostRevealed);
+
+        $$('.door', this.doorsEl).forEach((el, idx) => {
+          if (idx === g.hostRevealed) {
+            // η πόρτα που άνοιξε ο Monty δεν χρειάζεται hint
+            el.classList.remove('hover-hint');
+            el.removeAttribute('data-hint');
+            return;
+          }
+          el.classList.add('hover-hint');
+          // Αγγλικά labels όπως ζήτησες: "Stay" πάνω από την τωρινή επιλογή, "Switch" πάνω από την άλλη
+          el.setAttribute('data-hint', idx === g.playerPick ? 'STAY' : 'SWITCH');
+        });
+      },
+
+      onDoorClick(i, el) {
+        const g = this.game;
+        if (g.phase === GamePhase.PICK) {
+          g.pickDoor(i);
+          this.highlightSelected(i);
+          this.updatePhaseText();
+          const r = g.hostReveal();
+          this.revealGoat(r);
+          this.updatePhaseText();
+          this.setupDecideHoverHints();
+          logLine(`Διάλεξες πόρτα #${i+1}. Ο Monty άνοιξε πόρτα #${r+1} (🐐).`);
+        } else if (g.phase === GamePhase.DECIDE) {
+          // Tapping any unopened door = switch to the other unopened one
+          const unopenedOther = [0,1,2].find(d => d !== g.playerPick && d !== g.hostRevealed);
+          const switching = (i === unopenedOther);
+          const win = g.switchOrStay(switching ? 'switch' : 'stay');
+          this.finishReveal();
+          const banner = $('#resultBanner');
+          banner.classList.remove('hidden', 'win', 'lose');
+          if (win) {  banner.textContent = 'Κέρδισες!';  banner.classList.add('win'); }
+          else     {  banner.textContent = 'Έχασες!'; banner.classList.add('lose'); }
+          logLine(`${switching ? 'Έκανες SWITCH' : 'Έμεινες (STAY)'} — ${win ? 'Κέρδισες 🚗' : 'Έχασες 🐐'}.`);
+          Stats.add(win, switching ? 'switch' : 'stay');
+          this.updatePhaseText();
+          try {
+            socket?.emit('roundResult', { win, strategy: (switching ? 'switch' : 'stay') });
+          } catch {}
+        }
+      },
+
+      highlightSelected(i) {
+        $$('.door', this.doorsEl).forEach((el, idx) => {
+          el.classList.toggle('selected', idx === i);
+          $('.badge', el).textContent = idx === i ? 'επιλογή' : 'κλικ';
+        });
+      },
+
+      revealGoat(index) {
+        const el = $$('.door', this.doorsEl)[index];
+        el.classList.add('opened-goat', 'revealed-goat', 'is-open');
+        el.disabled = true;
+        $('.badge', el).textContent = 'ανοικτή';
+      },
+
+      finishReveal() {
+        this.clearHoverHints();
+        const g = this.game;
+        $$('.door', this.doorsEl).forEach((el, idx) => {
+          el.classList.remove('selected', 'opened-goat', 'revealed-goat', 'goat', 'car');
+          if (idx === g.carDoor) {
+            el.classList.add('car');
+          } else {
+            el.classList.add('goat');
+          }
+          el.classList.add('is-open');
+          $('.badge', el).textContent = idx === g.carDoor ? '🚗' : '🐐';
+        });
+
+        $$('.door', this.doorsEl).forEach((el, idx) => {
+          el.classList.toggle('final', idx === g.playerPick);
+        });
+        this.updateEmojiSizes();
+      },
+
+      updatePhaseText() {
+        const g = this.game;
+        const txt = g.phase === GamePhase.PICK ? 'Φάση: Επιλέξτε μια πόρτα'
+          : g.phase === GamePhase.REVEAL ? 'Φάση: Ο Monty ανοίγει μία κατσίκα…'
+          : g.phase === GamePhase.DECIDE ? 'Φάση: Switch ή Stay; Κάνε κλικ σε πόρτα.'
+          : 'Τέλος γύρου — Πατήστε "Νέος γύρος"';
+        this.phaseEl.textContent = txt;
+      },
+
+      updateStats() {
+        const { total, winSwitch, winStay, playSwitch, playStay } = Stats;
+
+        // Counters
+        this.tTotal.textContent = total;
+        this.tSwitch.innerHTML = `${winSwitch} <span class="plays">/ ${playSwitch}</span>`;
+        this.tStay.innerHTML = `${winStay} <span class="plays">/ ${playStay}</span>`;
+
+        // Win rates
+        const pS = playSwitch ? (winSwitch / playSwitch * 100) : 0;
+        const pT = playStay   ? (winStay   / playStay   * 100) : 0;
+        this.pSwitch.textContent = pS.toFixed(1) + '%';
+        this.pStay.textContent   = pT.toFixed(1) + '%';
+        this.barSwitch.style.width = pS + '%';
+        this.barStay.style.width   = pT + '%';
+
+        // Lose rates per strategy = (plays - wins) / plays
+        const lS = playSwitch ? ((playSwitch - winSwitch) / playSwitch * 100) : 0;
+        const lT = playStay   ? ((playStay   - winStay)   / playStay   * 100) : 0;
+        this.pSwitchLose.textContent = lS.toFixed(1) + '%';
+        this.pStayLose.textContent   = lT.toFixed(1) + '%';
+        this.barSwitchLose.style.width = lS + '%';
+        this.barStayLose.style.width   = lT + '%';
+
+        // --- Προσθήκη για mobile portrait: δώσε το ποσοστό σαν data-pct στις μπάρες ---
+        this.barSwitch.parentElement.setAttribute('data-pct', this.pSwitch.textContent);
+        this.barStay.parentElement.setAttribute('data-pct',   this.pStay.textContent);
+        this.barSwitchLose.parentElement.setAttribute('data-pct', this.pSwitchLose.textContent);
+        this.barStayLose.parentElement.setAttribute('data-pct',   this.pStayLose.textContent);
+
+        // Total win/lose rates
+        const wins = winSwitch + winStay;
+        const losses = Math.max(0, total - wins);
+
+        const pWinTotal  = total ? (wins   / total * 100) : 0;
+        const pLoseTotal = total ? (losses / total * 100) : 0;
+
+        this.pTotalWin.textContent  = pWinTotal.toFixed(1) + '%';
+        this.pTotalLose.textContent = pLoseTotal.toFixed(1) + '%';
+
+        this.barTotalWin.parentElement.setAttribute('data-pct',  this.pTotalWin.textContent);
+        this.barTotalLose.parentElement.setAttribute('data-pct', this.pTotalLose.textContent);
+
+        this.barTotalWin.style.width  = pWinTotal + '%';
+        this.barTotalLose.style.width = pLoseTotal + '%';
+      },
+
+      // ------------------------
+      // Αυτόματη εκτέλεση
+      // ------------------------
+      simulateOne(strategy) {
+        // Επιστρέφει boolean win
+        const car = Math.floor(rng() * 3);
+        const firstPick = Math.floor(rng() * 3);
+        // Monty ανοίγει μια κατσίκα που δεν είναι η επιλογή ούτε το αυτοκίνητο
+        const candidates = [0,1,2].filter(d => d !== firstPick && d !== car);
+        const revealed = choice(candidates);
+        let finalPick = firstPick;
+        if (strategy === 'switch' || (strategy === 'random' && rng() < 0.5)) {
+          finalPick = [0,1,2].find(d => d !== firstPick && d !== revealed);
+          strategy = 'switch'; // για μέτρηση
+        } else if (strategy === 'random') {
+          strategy = 'stay';
+        }
+        return { win: finalPick === car, strategy };
+      },
+
+      playOneAuto() {
+        const strat = this.strategy;
+        const { win, strategy } = this.simulateOne(strat);
+        Stats.add(win, strategy);
+        logLine(`Auto 1 γύρος [${strategy.toUpperCase()}] — ${win ? 'WIN 🚗' : 'LOSS 🐐'}`);
+        try { socket?.emit('roundResult', { win, strategy }); } catch {}
+      },
+
+      async runAuto() {
+        const roundsEl = $('#rounds');
+        // Αν έχει προηγηθεί clamp στο change, πάρε το "ζητηθέν" πριν το clamp
+        const rawFromDataset = Number(roundsEl.dataset.requestedRaw || 0);
+        const raw = Number(roundsEl.value || 0);
+        const requestedRaw = rawFromDataset > 0 ? rawFromDataset : raw;
+
+        const n = Math.max(1, Math.min(MAX_AUTO_ROUNDS, Math.floor(requestedRaw)));
+
+        if (requestedRaw > MAX_AUTO_ROUNDS || roundsEl.dataset.wasCapped === '1') {
+          logLine(`Ζητήθηκαν ${formatInt(requestedRaw)} γύροι — εφαρμόζεται cap σε ${formatInt(MAX_AUTO_ROUNDS)}.`);
+          delete roundsEl.dataset.wasCapped;
+          delete roundsEl.dataset.requestedRaw;
+        }
+        const strat = this.strategy;
+        const batch = Math.min(5000, n); // responsive updates
+        let remaining = n;
+        logLine(`Ξεκινά αυτόματη προσομοίωση ${n} γύρων με στρατηγική: ${strat.toUpperCase()}…`);
+        while (remaining > 0) {
+          const k = Math.min(batch, remaining);
+          let wS = 0, wT = 0;
+          let cS = 0, cT = 0;
+          for (let i = 0; i < k; i++) {
+            const { win, strategy } = this.simulateOne(strat);
+            if (strategy === 'switch') { cS++; if (win) wS++; }
+            else                       { cT++; if (win) wT++; }
+          }
+
+          Stats.total += k;
+          Stats.winSwitch += wS;
+          Stats.winStay   += wT;
+          Stats.playSwitch += cS;   // NEW
+          Stats.playStay   += cT;   // NEW
+          this.updateStats();
+          try { socket?.emit('batchResults', { k, wS, wT, cS, cT }); } catch {}
+
+          remaining -= k;
+          await new Promise(r => setTimeout(r, 0)); // επιτρέπει repaint
+        }
+        logLine('Ολοκληρώθηκε η αυτόματη προσομοίωση.');
+      }
+    };
+
+    // Init
+    // Init αφού φορτωθεί όλο το DOM (υπάρχει πια και το overlay)
+    window.addEventListener('DOMContentLoaded', () => ui.init());
+  </script>
+  <div id="overlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <button id="btnCloseOverlay" class="close" aria-label="Κλείσιμο">×</button>
+      <h3 style="margin-top:0">Διαδραστικός γύρος — Fullscreen</h3>
+      <div id="overlayContent"></div>
+    </div>
+  </div>
+  <div id="qrOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <button id="btnCloseQr" class="close" aria-label="Κλείσιμο">×</button>
+      <h3 style="margin-top:0">Άνοιγμα με QR Code</h3>
+      <div class="qr-big">
+        <div id="qrOverlayCode" aria-label="QR code πλήρους οθόνης"></div>
+        <div class="qr-col">
+          <div class="qr-actions">
+            <button id="btnQrCopy" class="icon-btn">Αντιγραφή συνδέσμου</button>
+            <button id="btnQrRefreshOverlay" class="icon-btn">Ανανέωση QR</button>
+          </div>
+          <div id="qrOverlayLink" class="mono qr-link" style="margin-top:6px"></div>
+          <div id="qrOverlayToast" class="copy-toast">Αντιγράφηκε!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  /* --- Tiny QR encoder (minified) — βασισμένο στο qrcode v1 (alphanumeric/url friendly) --- */
+  /* Πηγαίνει καλά για URL. Για πολύ μεγάλα/ειδικά payloads, ενημέρωσέ με να το επεκτείνουμε. */
+  (function(w){
+    // ελάχιστη υλοποίηση: χρησιμοποιούμε qrcode-generator (version 1) σε πολύ μικρή μορφή
+    // source: https://github.com/kazuhikoarase/qrcode-generator  (συμπτυγμένη για χρήση εδώ)
+    function QR8bitByte(data){this.data=data;}
+    QR8bitByte.prototype={getLength:function(){return this.data.length;},write:function(buffer){for(var i=0;i<this.data.length;i++){buffer.put(this.data.charCodeAt(i),8);}}};
+    var QRMode={MODE_8BIT_BYTE:4}, QRErrorCorrectLevel={L:1,M:0,Q:3,H:2};
+    function QRPolynomial(num, shift){if(num.length==undefined){throw new Error(num.length+"/"+shift);}var offset=0;while(offset<num.length&&num[offset]==0){offset++;}this.num=new Array(num.length-offset+shift);for(var i=0;i<num.length-offset;i++){this.num[i]=num[i+offset];}}
+    QRPolynomial.prototype={get:function(i){return this.num[i];},getLength:function(){return this.num.length;},multiply:function(e){var num=new Array(this.getLength()+e.getLength()-1);for(var i=0;i<this.getLength();i++){for(var j=0;j<e.getLength();j++){num[i+j]^=QRMath.gexp(QRMath.glog(this.get(i))+QRMath.glog(e.get(j)));}}return new QRPolynomial(num,0);},mod:function(e){if(this.getLength()-e.getLength()<0){return this;}var ratio=QRMath.glog(this.get(0))-QRMath.glog(e.get(0));var num=new Array(this.getLength());for(var i=0;i<this.getLength();i++){num[i]=this.get(i);}for(i=0;i<e.getLength();i++){num[i]^=QRMath.gexp(QRMath.glog(e.get(i))+ratio);}return new QRPolynomial(num,0).mod(e);}};
+    var QRMath={glog:function(n){if(n<1){throw new Error("glog("+n+")");}return QRMath.LOG_TABLE[n];},gexp:function(n){while(n<0){n+=255;}while(n>=256){n-=255;}return QRMath.EXP_TABLE[n];},EXP_TABLE:new Array(256),LOG_TABLE:new Array(256)};
+    for(var i=0;i<8;i++){QRMath.EXP_TABLE[i]=1<<i;}
+    for(i=8;i<256;i++){QRMath.EXP_TABLE[i]=QRMath.EXP_TABLE[i-4]^QRMath.EXP_TABLE[i-5]^QRMath.EXP_TABLE[i-6]^QRMath.EXP_TABLE[i-8];}
+    for(i=0;i<256;i++){QRMath.LOG_TABLE[QRMath.EXP_TABLE[i]]=i;}
+    function QRRSBlock(totalCount, dataCount){this.totalCount=totalCount;this.dataCount=dataCount;}
+    QRRSBlock.getRSBlocks=function(typeNumber, errorCorrectLevel){ // typeNumber 1-4 για μικρά URLs
+      var rsBlockTable={
+        1:{L:[new QRRSBlock(19,16)], M:[new QRRSBlock(16,13)], Q:[new QRRSBlock(13,9)], H:[new QRRSBlock(9,7)]},
+        2:{L:[new QRRSBlock(34,28)], M:[new QRRSBlock(28,22)], Q:[new QRRSBlock(22,16)], H:[new QRRSBlock(16,10)]},
+        3:{L:[new QRRSBlock(55,44)], M:[new QRRSBlock(44,34)], Q:[new QRRSBlock(34,26)], H:[new QRRSBlock(26,18)]},
+        4:{L:[new QRRSBlock(80,64)], M:[new QRRSBlock(64,48)], Q:[new QRRSBlock(48,36)], H:[new QRRSBlock(36,24)]}
+      }[typeNumber];
+      var level = {1:'L',0:'M',3:'Q',2:'H'}[errorCorrectLevel];
+      return rsBlockTable[level];
+    };
+    var QRBitBuffer=function(){this.buffer=[];this.length=0;};
+    QRBitBuffer.prototype={get:function(i){return ((this.buffer[Math.floor(i/8)] >>> (7 - i % 8)) & 1) == 1;},put:function(num,length){for(var i=0;i<length;i++){this.putBit(((num >>> (length - i -1)) & 1)==1);}},getLengthInBits:function(){return this.length;},putBit:function(bit){var bufIndex=Math.floor(this.length/8);if(this.buffer.length<=bufIndex){this.buffer.push(0);}if(bit){this.buffer[bufIndex]|=(0x80 >>> (this.length % 8));}this.length++;}};
+    function QRCode(typeNumber, errorCorrectLevel){this.typeNumber=typeNumber;this.errorCorrectLevel=errorCorrectLevel;this.modules=null;this.moduleCount=0;this.dataList=[];}
+    QRCode.prototype={addData:function(data){this.dataList.push(new QR8bitByte(data));},isDark:function(row,col){return this.modules[row][col];},getModuleCount:function(){return this.moduleCount;},make:function(){
+        // απλοποιημένη επιλογή ver (1-4) ανάλογα με μήκος URL
+        if(this.typeNumber==0){var len=this.dataList.reduce((s,d)=>s+d.getLength(),0);this.typeNumber=len<=13?1:len<=22?2:len<=34?3:4;}
+        this.makeImpl(false,this.getBestMaskPattern());
+      },makeImpl:function(test,maskPattern){
+        this.moduleCount=this.typeNumber*4+17; this.modules=new Array(this.moduleCount);
+        for(var row=0;row<this.moduleCount;row++){this.modules[row]=new Array(this.moduleCount);for(var col=0;col<this.moduleCount;col++){this.modules[row][col]=null;}}
+        this.setupPositionProbePattern(0,0); this.setupPositionProbePattern(this.moduleCount-7,0); this.setupPositionProbePattern(0,this.moduleCount-7);
+        this.setupPositionAdjustPattern(); this.setupTimingPattern(); this.setupTypeInfo(test,maskPattern);
+        if(this.typeNumber>=2){this.setupTypeNumber(test);}
+        var data=this.createData(this.typeNumber,this.errorCorrectLevel);
+        this.mapData(data,maskPattern);
+      },setupPositionProbePattern:function(row,col){
+        for(var r=-1;r<=7;r++){if(row+r<=-1||this.moduleCount<=row+r)continue;
+          for(var c=-1;c<=7;c++){if(col+c<=-1||this.moduleCount<=col+c)continue;
+            this.modules[row+r][col+c]=( (0<=r&&r<=6&&(c==0||c==6)) || (0<=c&&c<=6&&(r==0||r==6)) || (2<=r&&r<=4&&2<=c&&c<=4) );
+          }
+        }
+      },setupTimingPattern:function(){
+        for(var r=8;r<this.moduleCount-8;r++){ if(this.modules[r][6]!=null)continue; this.modules[r][6]=(r%2==0);}
+        for(var c=8;c<this.moduleCount-8;c++){ if(this.modules[6][c]!=null)continue; this.modules[6][c]=(c%2==0);}
+      },setupPositionAdjustPattern:function(){
+        if(this.typeNumber<2) return;
+        var pos = [6, this.moduleCount-7];
+        for(var i=0;i<pos.length;i++){for(var j=0;j<pos.length;j++){
+          var row=pos[i], col=pos[j]; if(this.modules[row][col]!=null) continue;
+          for(var r=-2;r<=2;r++){for(var c=-2;c<=2;c++){
+            this.modules[row+r][col+c]=(Math.max(Math.abs(r),Math.abs(c))!=1);
+          }}
+        }}
+      },setupTypeNumber:function(test){
+        var bits = this.getBCHTypeNumber(this.typeNumber);
+        for(var i=0;i<18;i++){var mod=(!test && ((bits>>(i))&1)==1); this.modules[Math.floor(i/3)][i%3+this.moduleCount-8-3]=mod;}
+        for(i=0;i<18;i++){var mod=(!test && ((bits>>(i))&1)==1); this.modules[i%3+this.moduleCount-8-3][Math.floor(i/3)]=mod;}
+      },setupTypeInfo:function(test,maskPattern){
+        var data=(this.errorCorrectLevel<<3)|maskPattern;
+        var bits=this.getBCHTypeInfo(data);
+        for(var i=0;i<15;i++){var mod=!test&&((bits>>i)&1)==1;
+          if(i<6)this.modules[i][8]=mod;
+          else if(i<8)this.modules[i+1][8]=mod;
+          else this.modules[this.moduleCount-15+i][8]=mod;}
+        for(i=0;i<15;i++){var mod=!test&&((bits>>i)&1)==1;
+          if(i<8)this.modules[8][this.moduleCount- i -1]=mod;
+          else if(i<9)this.modules[8][15 - i -1 + 1]=mod;
+          else this.modules[8][15 - i -1]=mod;}
+        this.modules[this.moduleCount-8][8]=!test;
+      },mapData:function(data,maskPattern){
+        var inc=-1,row=this.moduleCount-1,bitIndex=7,byteIndex=0,maskFunc=this.getMaskFunction(maskPattern);
+        for(var col=this.moduleCount-1;col>0;col-=2){
+          if(col==6) col--;
+          for(;;){
+            for(var c=0;c<2;c++){
+              if(this.modules[row][col-c]==null){
+                var dark=false;
+                if(byteIndex<data.length){dark=((data[byteIndex]>>>bitIndex)&1)==1;}
+                var mask=maskFunc(row,col-c);
+                this.modules[row][col-c]=(dark^mask);
+                bitIndex--; if(bitIndex==-1){byteIndex++; bitIndex=7;}
+              }
+            }
+            row+=inc; if(row<0||this.moduleCount<=row){row+=inc; inc=-inc; break;}
+          }
+        }
+      },createData:function(typeNumber,errorCorrectLevel){
+        var rsBlocks=QRRSBlock.getRSBlocks(typeNumber,errorCorrectLevel);
+        var buffer=new QRBitBuffer(); for(var i=0;i<this.dataList.length;i++){var data=this.dataList[i]; buffer.put(4,4); buffer.put(data.getLength(),8); data.write(buffer);}
+        // pad
+        var totalDataCount=rsBlocks[0].dataCount; // απλούστευση για 1 block
+        if(buffer.getLengthInBits()>totalDataCount*8){throw new Error("Overflow");}
+        for(i=0;i<totalDataCount*8 - buffer.getLengthInBits();i++){buffer.putBit(i%2==0);}
+        // μόνο ένα block -> χωρίς πραγματικό RS για συντομία (αρκετό για demo)
+        var bytes=[]; for(i=0;i<totalDataCount;i++){var b=0;for(var j=0;j<8;j++){if(buffer.get(i*8+j)) b|=(1<<(7-j));}bytes.push(b);}
+        return bytes;
+      },getMaskFunction:function(p){switch(p){case 0:return function(r,c){return (r+c)%2==0;};case 1:return function(r){return r%2==0;};default:return function(){return false;};}},
+      getBestMaskPattern:function(){return 0;},
+      getBCHTypeInfo:function(d){var g=0b10100110111,b=d<<10;while(QRCode.getBCHDigit(b)-QRCode.getBCHDigit(g)>=0){b^=(g<<(QRCode.getBCHDigit(b)-QRCode.getBCHDigit(g)));}return (d<<10)|b;},
+      getBCHDigit:function(d){var digit=0;while(d!=0){digit++; d>>>=1;}return digit;}
+    };
+    function drawQR(el, text, size){
+      var qr=new QRCode(4,QRErrorCorrectLevel.L); qr.addData(text); qr.make();
+      var count=qr.getModuleCount(), scale=Math.floor(size/count) || 4, w=count*scale, h=w;
+      var c=document.createElement('canvas'); c.width=w; c.height=h; var ctx=c.getContext('2d');
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,w,h); ctx.fillStyle='#000';
+      for(var r=0;r<count;r++){for(var col=0;col<count;col++){ if(qr.isDark(r,col)){ctx.fillRect(col*scale,r*scale,scale,scale);} }}
+      el.innerHTML=''; el.appendChild(c);
+    }
+    w.__MiniQR = { draw: drawQR };
+  })(window);
+
+  // Γενική συνάρτηση αντιγραφής με fallback για μη-HTTPS περιβάλλον
+  async function copyTextToClipboard(text) {
+    try {
+      if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);       // σύγχρονο API (HTTPS/localhost)
+        return true;
+      }
+      // Fallback: προσωρινό textarea + execCommand
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) {
+      console.warn('Copy failed:', e);
+      return false;
+    }
+  }
+  
+  /* --- QR init + actions --- */
+  (function(){
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const link = location.href;
+    const box = $('#qrcode');
+    const txt = $('#qrLink');
+    const btnR = $('#btnQrRefresh');
+    const btnC = $('#btnCopyLink');
+
+    if (!box || !txt) return;
+
+    function render(){ window.__MiniQR.draw(box, link, 200); txt.textContent = link; }
+    render();
+
+    btnR?.addEventListener('click', render);
+    btnC?.addEventListener('click', async () => {
+      const ok = await copyTextToClipboard(link);
+      if (ok) {
+        const prev = btnC.textContent;
+        btnC.textContent = 'Αντιγράφηκε!';
+        setTimeout(() => (btnC.textContent = prev || 'Αντιγραφή συνδέσμου'), 1200);
+      } else {
+        alert('Δεν ήταν δυνατή η αντιγραφή. Κάνε αντιγραφή χειροκίνητα από τον σύνδεσμο.');
+      }
+    });
+  })();
+  </script>
+  <button id="btnQrFab" class="qr-fab" title="Άνοιγμα QR">QR</button>
+  <button id="btnAdmFab" class="qr-fab admin-fab" title="Άνοιγμα Admin" style="display:none">ADM</button>
+  <script>
+    (function(){
+      const btn = document.getElementById('btnAdmFab');
+      if (!btn) return;
+
+      // Ρώτα τον server αν ΕΣΥ (ο caller) είσαι ο host
+      fetch('/__flags')
+        .then(r => r.json())
+        .then(({ isHost }) => {
+          if (isHost) {
+            btn.style.display = 'block';
+            const port = window.location.port || '5500';
+            btn.addEventListener('click', () => {
+              window.open(`http://localhost:${port}/admin.html`, '_blank', 'noopener');
+            });
+          } else {
+            btn.style.display = 'none';
+          }
+        })
+        .catch(() => { /* αν κάτι πάει στραβά, απλά μην το δείξεις */ });
+      })();
+    (function(){
+      const $ = (s, r=document) => r.querySelector(s);
+      const link = location.href;
+
+      const btnFab = $('#btnQrFab');
+      const ov = $('#qrOverlay');
+      const btnClose = $('#btnCloseQr');
+      const codeBox = $('#qrOverlayCode');
+      const linkBox = $('#qrOverlayLink');
+      const btnCopy = $('#btnQrCopy');
+      const btnRefresh = $('#btnQrRefreshOverlay');
+
+      function openQrOverlay() {
+        ov.classList.remove('hidden');
+        ov.classList.add('show');
+        document.body.style.overflow = 'hidden';
+        renderQr();
+      }
+      function closeQrOverlay() {
+        ov.classList.remove('show');
+        ov.classList.add('hidden');
+        document.body.style.overflow = '';
+      }
+      function renderQr() {
+        const full = location.href;
+
+        // 1) Προσπάθησε πρώτα το τοπικό MiniQR (v4, EC=L)
+        try {
+          // Αν υπάρχει ο encoder και υπάρχει το box
+          if (window.__MiniQR && codeBox) {
+            window.__MiniQR.draw(codeBox, full, 320);
+            linkBox.textContent = full;
+            return; // επιτυχία -> τέλος
+          }
+          throw new Error('MiniQR missing');
+        } catch (err) {
+          console.warn('MiniQR failed, falling back to img QR.', err);
+          // 2) Fallback: QR ως IMG από δημόσιο endpoint
+          const urlImg = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' + encodeURIComponent(full);
+          // καθάρισε και βάλε <img>
+          codeBox.innerHTML = '';
+          const img = new Image();
+          img.width = 320; img.height = 320;
+          img.alt = 'QR code';
+          img.referrerPolicy = 'no-referrer';
+          img.src = urlImg;
+          codeBox.appendChild(img);
+          linkBox.textContent = full;
+        }
+      }
+
+      btnFab?.addEventListener('click', openQrOverlay);
+      btnClose?.addEventListener('click', closeQrOverlay);
+      ov?.addEventListener('click', (e) => { if (e.target.id === 'qrOverlay') closeQrOverlay(); });
+      btnRefresh?.addEventListener('click', renderQr);
+      
+      const toast = $('#qrOverlayToast');
+      
+      btnCopy?.addEventListener('click', async () => {
+        // disable + gray out
+        btnCopy.disabled = true;
+        btnCopy.classList.add('is-disabled');
+
+        const ok = await copyTextToClipboard(location.href);
+
+        // δείξε toast (ακόμα κι αν απέτυχε, για ομοιόμορφο UX· άλλαξε μήνυμα αν θέλεις)
+        if (toast) {
+          toast.textContent = ok ? 'Αντιγράφηκε!' : 'Αποτυχία αντιγραφής';
+          toast.style.display = 'block';
+          // ξεκινά το fade λίγο πριν τα 3s, ώστε στα 3s να έχει σβήσει
+          setTimeout(() => { toast.classList.add('fade'); }, 2600);
+          setTimeout(() => {
+            toast.style.display = 'none';
+            toast.classList.remove('fade');
+            // επαναφορά κουμπιού
+            btnCopy.disabled = false;
+            btnCopy.classList.remove('is-disabled');
+          }, 3000);
+        } else {
+          // σε περίπτωση που δεν υπάρχει toast element, κάνε απλή επαναφορά
+          setTimeout(() => {
+            btnCopy.disabled = false;
+            btnCopy.classList.remove('is-disabled');
+          }, 1200);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment secrets
+.env
+
+# Builds / artifacts (αν ποτέ προσθέσεις)
+dist/
+build/
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors/IDEs (προαιρετικά)
+.vscode/
+.idea/
+*.iml
+
+# Misc (αν χρησιμοποιήσεις TypeScript ή bundlers)
+*.tsbuildinfo
+.cache/
