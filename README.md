@@ -104,7 +104,7 @@ MontyHall realtime backend on http://0.0.0.0:5500
 
 - **Παιχνίδι (LAN):**
   `http://<LAN-IP>:5500/MontyHall.html`  
-  π.χ. `http://192.168.1.213:5500/MontyHall.html`
+  π.χ. `http://192.168.X.Y:5500/MontyHall.html`
 
 - **Admin (μόνο host):**
   `http://localhost:5500/admin.html`  
