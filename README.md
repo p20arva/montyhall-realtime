@@ -114,6 +114,30 @@ MontyHall realtime backend on http://0.0.0.0:5500
 
 ---
 
+### Πώς βρίσκω το LAN IP μου
+
+- **Windows**
+  1. Άνοιξε PowerShell ή Command Prompt
+  2. Τρέξε: `ipconfig`
+  3. Βρες την κάρτα δικτύου που χρησιμοποιείς (Wi-Fi ή Ethernet) και σημείωσε το **IPv4 Address** (π.χ. `192.168.x.y`)
+
+- **macOS**
+  1. Άνοιξε Terminal
+  2. Τρέξε: `ipconfig getifaddr en0` (συνήθως Wi-Fi) ή `ipconfig getifaddr en1` (Ethernet)
+     - Εναλλακτικά: `ifconfig | grep 'inet ' | grep -v 127.0.0.1`
+  3. Σημείωσε τη διεύθυνση τύπου `192.168.x.y`
+
+- **Linux**
+  1. Άνοιξε Terminal
+  2. Τρέξε: `ip a | grep 'inet ' | grep -v 127.0.0.1`
+     - Εναλλακτικά: `hostname -I`
+  3. Σημείωσε τη διεύθυνση τύπου `192.168.x.y`
+
+> Χρησιμοποίησε αυτό το LAN IP στη διεύθυνση του παιχνιδιού:  
+> `http://<LAN-IP>:5500/MontyHall.html`
+
+---
+
 ## 🕹️ Χρήση
 - Χειροκίνητοι γύροι: άνοιξε πόρτα → **SWITCH** ή **STAY**.
 - Αυτόματο: βάλε γύρους (έως cap) → **Τρέξε αυτόματα**. Αν ζητήσεις παραπάνω, εφαρμόζεται cap και γράφεται μήνυμα στο log.
