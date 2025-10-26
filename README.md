@@ -296,7 +296,7 @@ MontyHall realtime backend on http://0.0.0.0:5500
   1. Άνοιξε PowerShell ή Command Prompt
   2. Τρέξε:
 ```powershell
-    ipconfig
+      ipconfig
 ```
   3. Βρες το **IPv4 Address** της κάρτας δικτύου που χρησιμοποιείς (Wi-Fi/Ethernet), π.χ. `192.168.x.y`.
 
@@ -304,10 +304,10 @@ MontyHall realtime backend on http://0.0.0.0:5500
   1. Άνοιξε Terminal
   2. Τρέξε: 
 ```bash
-    ipconfig getifaddr en0     # Wi-Fi (συνήθως)
-    ipconfig getifaddr en1     # Ethernet
-    # ή
-    ifconfig | grep 'inet ' | grep -v 127.0.0.1 # Εναλλακτικά
+      ipconfig getifaddr en0     # Wi-Fi (συνήθως)
+      ipconfig getifaddr en1     # Ethernet
+      # ή
+      ifconfig | grep 'inet ' | grep -v 127.0.0.1 # Εναλλακτικά
 ```
   3. Σημείωσε τη διεύθυνση τύπου `192.168.x.y`
   
@@ -315,9 +315,9 @@ MontyHall realtime backend on http://0.0.0.0:5500
   1. Άνοιξε Terminal
   2. Τρέξε: 
 ```bash
-    ip a | grep 'inet ' | grep -v 127.0.0.1
-    # ή
-hostname -I
+      ip a | grep 'inet ' | grep -v 127.0.0.1
+      # ή
+      hostname -I
 ```
   3. Σημείωσε τη διεύθυνση τύπου `192.168.x.y`
 
